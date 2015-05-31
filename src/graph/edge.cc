@@ -343,12 +343,15 @@ namespace hpp {
         GraphComponent::populateTooltip (tp);
         tp.addLine ("");
         tp.addLine ("Extra numerical constraints are:");
-        for (NumericalConstraints_t::const_iterator it = extraNumericalConstraints_.begin ();
-            it != extraNumericalConstraints_.end (); ++it) {
+        ConfigProjectorPtr_t param = hist_->foliation().parametrizer();
+        const NumericalConstraints_t& nc = param->numericalConstraints();
+        const LockedJoints_t& lj = param->lockedJoints ();
+        for (NumericalConstraints_t::const_iterator it = nc.begin ();
+            it != nc.end (); ++it) {
           tp.addLine ("- " + (*it)->function ().name ());
         }
-        for (LockedJoints_t::const_iterator it = extraLockedJoints_.begin ();
-            it != extraLockedJoints_.end (); ++it) {
+        for (LockedJoints_t::const_iterator it = lj.begin ();
+            it != lj.end (); ++it) {
           tp.addLine ("- " + (*it)->jointName ());
         }
       }
@@ -360,8 +363,16 @@ namespace hpp {
 
       bool LevelSetEdge::applyConstraints (core::NodePtr_t n_offset, ConfigurationOut_t q) const
       {
+        ConfigProjectorPtr_t param = hist_->foliation().parametrizer();
+        const NumericalConstraints_t& nc = param->numericalConstraints();
+        const LockedJoints_t& lj = param->lockedJoints ();
+
         // First, get an offset from the histogram that is not in the same connected component.
         statistics::DiscreteDistribution < core::NodePtr_t > distrib = hist_->getDistribOutOfConnectedComponent (n_offset->connectedComponent ());
+        if (distrib.size () == 0) {
+          hppDout (warning, "Edge " << name() << ": Distrib is empty");
+          return false;
+        }
         const Configuration_t& levelsetTarget = *(distrib ()->configuration ()),
                                q_offset = *(n_offset->configuration ());
         // Then, set the offset.
@@ -369,13 +380,12 @@ namespace hpp {
         const ConfigProjectorPtr_t cp = cs->configProjector ();
         assert (cp);
 	cp->rightHandSideFromConfig (q_offset);
-	for (NumericalConstraints_t::const_iterator it =
-	       extraNumericalConstraints_.begin ();
-	     it != extraNumericalConstraints_.end (); ++it) {
+	for (NumericalConstraints_t::const_iterator it = nc.begin ();
+	     it != nc.end (); ++it) {
           (*it)->rightHandSideFromConfig (levelsetTarget);
         }
-        for (LockedJoints_t::const_iterator it = extraLockedJoints_.begin ();
-	     it != extraLockedJoints_.end (); ++it) {
+        for (LockedJoints_t::const_iterator it = lj.begin ();
+	     it != lj.end (); ++it) {
           (*it)->rightHandSideFromConfig (levelsetTarget);
         }
 	cp->updateRightHandSide ();
@@ -411,28 +421,9 @@ namespace hpp {
         return shPtr;
       }
 
-      void LevelSetEdge::buildHistogram ()
+      void LevelSetEdge::histogram (LeafHistogramPtr_t hist)
       {
-        std::string n = "(" + name () + ")";
-        GraphPtr_t g = graph_.lock ();
-
-        ConstraintSetPtr_t constraint = ConstraintSet::create (g->robot (), "Set " + n);
-
-        ConfigProjectorPtr_t proj = ConfigProjector::create(g->robot(), "proj_" + n, g->errorThreshold(), g->maxIterations());
-        IntervalsContainer_t::const_iterator itpdof = extraPassiveDofs_.begin ();
-        for (NumericalConstraints_t::const_iterator it = extraNumericalConstraints_.begin ();
-            it != extraNumericalConstraints_.end (); ++it) {
-          proj->add (*it, *itpdof);
-          ++itpdof;
-        }
-
-        for (LockedJoints_t::const_iterator it = extraLockedJoints_.begin ();
-            it != extraLockedJoints_.end (); ++it)
-          proj->add (*it);
-
-        constraint->addConstraint (proj);
-
-        hist_ = graph::LeafHistogramPtr_t (new graph::LeafHistogram (constraint));
+        hist_ = hist;
       }
 
       LeafHistogramPtr_t LevelSetEdge::histogram () const
@@ -440,54 +431,46 @@ namespace hpp {
         return hist_;
       }
 
+      void LevelSetEdge::buildExtraConfigConstraint () const
+      {
+        /// First get the numerical constraints
+        ConfigProjectorPtr_t param = hist_->foliation().parametrizer();
+        const NumericalConstraints_t& nc = param->numericalConstraints();
+        const LockedJoints_t& lj = param->lockedJoints ();
+
+        /// Build the constraint set.
+        std::string n = "(" + name () + "_extra)";
+        GraphPtr_t g = graph_.lock ();
+
+        ConstraintSetPtr_t constraint = ConstraintSet::create (g->robot (), "Set " + n);
+
+        ConfigProjectorPtr_t proj = ConfigProjector::create(g->robot(), "proj_" + n, g->errorThreshold(), g->maxIterations());
+        g->insertNumericalConstraints (proj);
+        for (NumericalConstraints_t::const_iterator it = nc.begin ();
+            it != nc.end (); ++it) {
+          proj->add (*it);
+        }
+
+        insertNumericalConstraints (proj);
+        to ()->insertNumericalConstraints (proj);
+        constraint->addConstraint (proj);
+
+        g->insertLockedJoints (proj);
+        for (LockedJoints_t::const_iterator it = lj.begin ();
+            it != lj.end (); ++it) {
+          proj->add (*it);
+        }
+        insertLockedJoints (proj);
+        to ()->insertLockedJoints (proj);
+        extraConstraints_->set (constraint);
+      }
+
       ConstraintSetPtr_t LevelSetEdge::extraConfigConstraint () const
       {
         if (!*extraConstraints_) {
-          std::string n = "(" + name () + "_extra)";
-          GraphPtr_t g = graph_.lock ();
-
-          ConstraintSetPtr_t constraint = ConstraintSet::create (g->robot (), "Set " + n);
-
-          ConfigProjectorPtr_t proj = ConfigProjector::create(g->robot(), "proj_" + n, g->errorThreshold(), g->maxIterations());
-          g->insertNumericalConstraints (proj);
-          IntervalsContainer_t::const_iterator itpdof = extraPassiveDofs_.begin ();
-          for (NumericalConstraints_t::const_iterator it = extraNumericalConstraints_.begin ();
-              it != extraNumericalConstraints_.end (); ++it) {
-            proj->add (*it, *itpdof);
-            ++itpdof;
-          }
-          assert (itpdof == extraPassiveDofs_.end ());
-          insertNumericalConstraints (proj);
-          to ()->insertNumericalConstraints (proj);
-          constraint->addConstraint (proj);
-
-          g->insertLockedJoints (proj);
-          for (LockedJoints_t::const_iterator it = extraLockedJoints_.begin ();
-              it != extraLockedJoints_.end (); ++it) {
-            proj->add (*it);
-          }
-          insertLockedJoints (proj);
-          to ()->insertLockedJoints (proj);
-          extraConstraints_->set (constraint);
+          buildExtraConfigConstraint ();
         }
         return extraConstraints_->get ();
-      }
-
-      void LevelSetEdge::insertConfigConstraint (const NumericalConstraintPtr_t& nm,
-              const SizeIntervals_t& passiveDofs)
-      {
-        extraNumericalConstraints_.push_back (nm);
-        extraPassiveDofs_.push_back (passiveDofs);
-      }
-
-      void LevelSetEdge::insertConfigConstraint (const DifferentiableFunctionPtr_t function, const ComparisonTypePtr_t ineq)
-      {
-        insertConfigConstraint (NumericalConstraint::create (function, ineq));
-      }
-
-      void LevelSetEdge::insertConfigConstraint (const LockedJointPtr_t lockedJoint)
-      {
-        extraLockedJoints_.push_back (lockedJoint);
       }
 
       LevelSetEdge::LevelSetEdge

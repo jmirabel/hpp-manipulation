@@ -247,16 +247,9 @@ namespace hpp {
 
           virtual bool applyConstraints (core::NodePtr_t n_offset, ConfigurationOut_t q) const;
 
-          void buildHistogram ();
+          void histogram (LeafHistogramPtr_t hist);
 
           LeafHistogramPtr_t histogram () const;
-
-          void insertConfigConstraint (const NumericalConstraintPtr_t& nm,
-              const SizeIntervals_t& passiveDofs = SizeIntervals_t ());
-
-          void insertConfigConstraint (const DifferentiableFunctionPtr_t function, const ComparisonTypePtr_t ineq) __attribute__ ((deprecated));
-
-          void insertConfigConstraint (const LockedJointPtr_t lockedJoint);
 
           /// Print the object in a stream.
           virtual std::ostream& dotPrint (std::ostream& os, dot::DrawingAttributes da = dot::DrawingAttributes ()) const;
@@ -280,14 +273,8 @@ namespace hpp {
 
           /// See pathConstraint member function.
           Constraint_t* extraConstraints_;
-          virtual ConstraintSetPtr_t extraConfigConstraint () const;
-
-          /// Extra NumericalConstraints_t
-          NumericalConstraints_t extraNumericalConstraints_;
-          IntervalsContainer_t extraPassiveDofs_;
-
-          /// Extra LockedJoints_t
-          LockedJoints_t extraLockedJoints_;
+          ConstraintSetPtr_t extraConfigConstraint () const;
+          void buildExtraConfigConstraint () const;
 
           /// This histogram will be used to find a good level set.
           LeafHistogramPtr_t hist_;
