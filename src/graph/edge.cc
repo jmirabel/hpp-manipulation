@@ -159,7 +159,7 @@ namespace hpp {
       }
 
       bool Edge::build (core::PathPtr_t& path, ConfigurationIn_t q1,
-			ConfigurationIn_t q2, const core::WeighedDistance& d)
+			ConfigurationIn_t q2, const core::WeighedDistance& /*d*/)
 	const
       {
         ConstraintSetPtr_t constraints = pathConstraint ();
