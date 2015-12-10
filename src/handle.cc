@@ -89,7 +89,8 @@ namespace hpp {
 				       gripper->joint()->robot(),
 				       gripper->joint (), joint (),
 				       gripper->objectPositionInJoint (),
-				       localPosition(), mask)));
+                                       localPosition(), mask),
+                                      core::Equality::create ()));
     }
 
     NumericalConstraintPtr_t Handle::createPreGrasp
