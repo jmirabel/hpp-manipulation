@@ -265,11 +265,18 @@ namespace hpp {
       PathProjectorPtr_t pathProjector (problem().pathProjector ());
       core::PathPtr_t path, projPath, validPath;
       graph::GraphPtr_t graph = problem_.constraintGraph ();
+      bool connectSucceed = false;
       for (core::Nodes_t::const_iterator itn1 = nodes.begin ();
-	   itn1 != nodes.end (); ++itn1) {
+          itn1 != nodes.end (); ++itn1) {
         ConfigurationPtr_t q1 ((*itn1)->configuration ());
-	for (core::Nodes_t::const_iterator itn2 = boost::next (itn1);
-	     itn2 != nodes.end (); ++itn2) {
+        connectSucceed = false;
+        for (core::ConnectedComponents_t::const_iterator itcc =
+            roadmap ()->connectedComponents ().begin ();
+            itcc != roadmap ()->connectedComponents ().end (); ++itcc) {
+          if (*itcc == (*itn1)->connectedComponent ())
+            continue;
+          for (core::Nodes_t::const_iterator itn2 = (*itcc)->nodes().begin ();
+              itn2 != (*itcc)->nodes ().end (); ++itn2) {
             bool _1to2 = (*itn1)->isOutNeighbor (*itn2);
             bool _2to1 = (*itn1)->isInNeighbor (*itn2);
             if (_1to2 && _2to1) {
@@ -292,7 +299,11 @@ namespace hpp {
                     (core::interval_t (timeRange.second,
                                        timeRange.first)));
               }
+              connectSucceed = true;
+              break;
             }
+          }
+          if (connectSucceed) break;
         }
       }
     }
