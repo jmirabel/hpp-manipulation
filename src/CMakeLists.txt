@@ -49,6 +49,7 @@ SET(SOURCES
   graph/dot.cc
 
   path-optimization/config-optimization.cc
+  path-optimization/cut-path.cc
   path-optimization/keypoints.cc
   )
 
