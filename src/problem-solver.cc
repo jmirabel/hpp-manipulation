@@ -28,6 +28,7 @@
 
 #include <hpp/core/random-shortcut.hh>
 #include <hpp/core/path-optimization/partial-shortcut.hh>
+#include <hpp/core/path-optimization/gradient-based.hh>
 #include <hpp/core/roadmap.hh>
 #include <hpp/core/steering-method-straight.hh>
 #include <hpp/core/comparison-type.hh>
@@ -99,6 +100,8 @@ namespace hpp {
           GraphConfigOptimizationTraits
             <pathOptimization::ConfigOptimizationTraits>
             >);
+      parent_t::add <PathOptimizerBuilder_t> ("Graph-GradientBased",
+          GraphOptimizer::create <core::pathOptimization::GradientBased>);
       using core::SteeringMethodBuilder_t;
       parent_t::add <SteeringMethodBuilder_t> ("Graph-SteeringMethodStraight",
           GraphSteeringMethod::create <core::SteeringMethodStraight>);
