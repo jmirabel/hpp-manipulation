@@ -150,7 +150,9 @@ namespace hpp {
             if ((*_edges)->applyConstraints (q1,q)) {
               PathPtr_t short1, proj1;
               if ((*_edges)->build (short1, q1, q)) {
-                if (!short1 || !pathProjector->apply(short1, proj1)) continue;
+                if (!short1) continue;
+                if (!pathProjector) proj1 = short1;
+                else if (!pathProjector->apply(short1, proj1)) continue;
                 if (!pathValidation->validate (proj1, false, unusedP, report)) continue;
 
                 // short1 is a valid path leading to the target node.
@@ -163,7 +165,9 @@ namespace hpp {
                   if (!(*ikpp2.path) (q4, t4)) continue;
                   PathPtr_t short2, proj2;
                   short2 = (*sm)(q, q4);
-                  if (!short2 || !pathProjector->apply(short2, proj2)) continue;
+                  if (!short2) continue;
+                  if (!pathProjector) proj2 = short2;
+                  else if (!pathProjector->apply(short2, proj2)) continue;
                   if (!pathValidation->validate (proj2, false, unusedP, report)) continue;
                   // short2 is possible. Build the path and check it is shorter.
 
@@ -176,6 +180,7 @@ namespace hpp {
                   tmp->concatenate (*(ikpp2.path->extract
                         (make_pair (t4, t5))-> as <PathVector> ()));
 
+                  hppDout (info, "Keypoints: Built a new path");
                   if (cur_length >= tmp->length()) {
                     cur_length = tmp->length();
                     result = tmp;

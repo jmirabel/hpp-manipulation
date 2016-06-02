@@ -47,6 +47,9 @@
 #include "hpp/manipulation/graph/graph.hh"
 #include "hpp/manipulation/graph/node-selector.hh"
 
+#include "symbolic-component/bfs.hh"
+#include "symbolic-component/knearest-neighbors.hh"
+
 #define CastToWSC_ptr(var, scPtr) \
   WeighedSymbolicComponentPtr_t var = \
   HPP_DYNAMIC_PTR_CAST(WeighedSymbolicComponent,scPtr)
@@ -217,6 +220,21 @@ namespace hpp {
           hppDout (error, "There should always be a connected component corresponding to symbolic component");
           continue;
         }
+        symbolicComponent::Bfs bfs (sc);
+        std::stringstream ss;
+        if (roadmap()->initNode()->connectedComponent() == *itcc) {
+          SymbolicComponentPtr_t initSc =
+            static_cast<RoadmapNodePtr_t>(roadmap()->initNode())->symbolicComponent();
+          initSc->accept(bfs);
+          ss << "Best current task sequence from start\n";
+        } else if (roadmap()->goalNodes().front()->connectedComponent() == *itcc) {
+          SymbolicComponentPtr_t goalSc =
+            static_cast<RoadmapNodePtr_t>(roadmap()->goalNodes().front())->symbolicComponent();
+          goalSc->accept(bfs);
+          ss << "Best current task sequence from first goal node\n";
+        }
+        bfs.printPath(ss);
+        hppDout (info, ss.str());
 
         // Find the nearest neighbor.
         HPP_START_TIMECOUNTER(nearestNeighbor);
@@ -257,10 +275,8 @@ namespace hpp {
 	const core::PathPtr_t& validPath = itEdge-> get <2> ();
         core::NodePtr_t newNode = rdm->addNode (q_new);
 	roadmap()->addEdge (near, newNode, validPath);
-        core::interval_t timeRange = validPath->timeRange ();
-	roadmap()->addEdge (newNode, near, validPath->extract
-			     (core::interval_t (timeRange.second ,
-                                                timeRange.first)));
+	roadmap()->addEdge (newNode, near, validPath->reverse());
+        newNodes.push_back (newNode);
         updateWeightsAndProbabilities (
             static_cast<RoadmapNode*>(near),
             static_cast<RoadmapNode*>(newNode),
@@ -311,12 +327,12 @@ namespace hpp {
       WeighedSymbolicComponentPtr_t wscPtr = HPP_DYNAMIC_PTR_CAST
         (WeighedSymbolicComponent, n_near->symbolicComponent());
       if (wscPtr) {
-        WeighedSymbolicComponent wsc = *wscPtr;
-        value_type R = rand() / RAND_MAX;
-        std::size_t i = 0;
-        for (value_type sum = wsc.p_[0]; sum < R; sum += wsc.p_[i]) { ++i; }
-        assert(i < wsc.edges_.size());
-        status.edge = wsc.edges_[i];
+        WeighedSymbolicComponent& wsc = *wscPtr;
+        value_type R = ((value_type)rand()) / RAND_MAX;
+        size_type i = 0;
+        for (value_type sum = wsc.p_[0]; i < wsc.p_.size() && sum < R; sum += wsc.p_[i]) { ++i; }
+        if (i < wsc.edges_.size())
+          status.edge = wsc.edges_[i];
       } else status.edge = graph->chooseEdge (n_near);
       HPP_STOP_TIMECOUNTER (chooseEdge);
       if (!status.edge) {
@@ -387,7 +403,8 @@ namespace hpp {
       } else {
         if (!fullyValid) {
           es.addFailure (reasons_[PATH_VALIDATION_SHORTER]);
-          status.status = (projShorter?PATH_PROJECTION_AND_VALIDATION_SHORTER:PATH_VALIDATION_SHORTER);
+          status.status = SUCCESS;
+          status.info = (projShorter?PATH_PROJECTION_AND_VALIDATION_SHORTER:PATH_VALIDATION_SHORTER);
         }
         if (extendStep_ == 1 || fullyValid) {
           validPath = fullValidPath;
@@ -432,51 +449,71 @@ namespace hpp {
       const core::SteeringMethodPtr_t& sm (problem ().steeringMethod ());
       core::PathValidationPtr_t pathValidation (problem ().pathValidation ());
       PathProjectorPtr_t pathProjector (problem().pathProjector ());
-      core::PathPtr_t path, projPath, validPath;
       graph::GraphPtr_t graph = problem_.constraintGraph ();
+      RoadmapPtr_t rdm = HPP_DYNAMIC_PTR_CAST(Roadmap, roadmap()); HPP_ASSERT(rdm);
+      core::PathPtr_t path, projPath, validPath;
       bool connectSucceed = false;
       std::size_t nbConnection = 0;
       const std::size_t K = 7;
-      value_type distance;
-      for (core::Nodes_t::const_iterator itn1 = nodes.begin ();
-          itn1 != nodes.end (); ++itn1) {
-        ConfigurationPtr_t q1 ((*itn1)->configuration ());
+      for (core::Nodes_t::const_iterator _node1 = nodes.begin ();
+          _node1 != nodes.end (); ++_node1) {
+        const RoadmapNodePtr_t& node1 = static_cast<RoadmapNodePtr_t>(*_node1);
+        const core::ConnectedComponentPtr_t& cc1 (node1->connectedComponent());
+        const       SymbolicComponentPtr_t & sc1 (node1->symbolicComponent ());
+        ConfigurationPtr_t q1 (node1->configuration ());
         connectSucceed = false;
-        for (core::ConnectedComponents_t::const_iterator itcc =
-            roadmap ()->connectedComponents ().begin ();
-            itcc != roadmap ()->connectedComponents ().end (); ++itcc) {
-          if (*itcc == (*itn1)->connectedComponent ())
-            continue;
-          core::Nodes_t knearest = roadmap()->nearestNeighbor ()
-            ->KnearestSearch (q1, *itcc, K, distance);
-          for (core::Nodes_t::const_iterator itn2 = knearest.begin ();
-              itn2 != knearest.end (); ++itn2) {
-            bool _1to2 = (*itn1)->isOutNeighbor (*itn2);
-            bool _2to1 = (*itn1)->isInNeighbor (*itn2);
-            if (_1to2 && _2to1) {
-              hppDout (info, "the two nodes are already connected");
-              continue;
-            }
-            ConfigurationPtr_t q2 ((*itn2)->configuration ());
-            assert (*q1 != *q2);
-            path = (*sm) (*q1, *q2);
-            if (!path) continue;
-            if (pathProjector) {
-              if (!pathProjector->apply (path, projPath)) continue;
-            } else projPath = path;
-	    PathValidationReportPtr_t report;
-            if (pathValidation->validate (projPath, false, validPath, report)) {
-              nbConnection++;
-              if (!_1to2) roadmap ()->addEdge (*itn1, *itn2, projPath);
-              if (!_2to1) {
-                core::interval_t timeRange = projPath->timeRange ();
-                roadmap ()->addEdge (*itn2, *itn1, projPath->extract
-                    (core::interval_t (timeRange.second,
-                                       timeRange.first)));
+        symbolicComponent::KNearestNeighbors knn (K, q1);
+        // Find the symbolic component which are in the same state
+        // but in other connected component
+        for (SymbolicComponents_t::const_iterator _sc = rdm->symbolicComponents().begin ();
+            _sc != rdm->symbolicComponents().end (); ++_sc) {
+          const SymbolicComponentPtr_t& sc2 = *_sc;
+          if (sc2->connectedComponent() == cc1
+              || sc2->state() != sc1->state()) continue;
+          std::stringstream ss;
+          symbolicComponent::Print printer (ss);
+          sc1->accept(printer);
+          ss << "\n and ";
+          sc2->accept(printer);
+
+          graph::Edges_t edges = graph->getEdges(sc1->state(),sc2->state());
+          if (edges.empty()) continue;
+          sc2->accept (knn);
+          RoadmapNodes_t knearest = knn.nodes();
+          for (std::size_t i = 0; i < edges.size(); ++i) {
+            if (edges[i]->canConnect(
+                  *q1, *(sc2->nodes().front()->configuration()))) {
+              for (RoadmapNodes_t::const_iterator _node2 = knearest.begin ();
+                  _node2 != knearest.end (); ++_node2) {
+                const RoadmapNodePtr_t& node2 = *_node2;
+                bool _1to2 = node1->isOutNeighbor (node2);
+                bool _2to1 = node1->isInNeighbor  (node2);
+                if (_1to2 && _2to1) {
+                  hppDout (info, "the two nodes are already connected");
+                  continue;
+                }
+                ConfigurationPtr_t q2 (node2->configuration ());
+                assert (*q1 != *q2);
+                if (!edges[i]->build(path, *q1, *q2)) continue;
+                if (pathProjector) {
+                  if (!pathProjector->apply (path, projPath)) continue;
+                } else projPath = path;
+                PathValidationReportPtr_t report;
+                if (pathValidation->validate (projPath, false, validPath, report)) {
+                  nbConnection++;
+                  if (!_1to2) roadmap ()->addEdge (node1, node2, projPath);
+                  if (!_2to1) roadmap ()->addEdge (node2, node1, projPath->reverse());
+                  connectSucceed = true;
+                  break;
+                }
               }
-              connectSucceed = true;
-              break;
+              if (connectSucceed) {
+                hppDout (info, "Connection between SC succeeded: " << ss.str());
+              } else {
+                hppDout (info, "Connection between SC failed: " << ss.str());
+              }
             }
+            if (connectSucceed) break;
           }
           if (connectSucceed) break;
         }
@@ -516,12 +553,7 @@ namespace hpp {
           if (pathValidation->validate (projPath, false, validPath, report)) {
             nbConnection++;
             if (!_1to2) roadmap ()->addEdge (*itn1, *itn2, projPath);
-            if (!_2to1) {
-              core::interval_t timeRange = projPath->timeRange ();
-              roadmap ()->addEdge (*itn2, *itn1, projPath->extract
-                  (core::interval_t (timeRange.second,
-                                     timeRange.first)));
-            }
+            if (!_2to1) roadmap ()->addEdge (*itn2, *itn1, projPath->reverse());
           }
         }
       }
@@ -532,16 +564,22 @@ namespace hpp {
         const RoadmapNodePtr_t& near, const RoadmapNodePtr_t& newN,
         const ExtendStatus& extend)
     {
+      graph::GraphPtr_t graph = problem_.constraintGraph ();
       // 0.99 ^ 26 * 1.3 ~= 1  => A new extension followed by 26 failures
       // results in similar weights for the symbolic components.
+      // const value_type weightInc = 1.3;
       const value_type weightInc = 1.3;
-      const value_type weightDec = 0.99;
+      const value_type weightDec = 0.999;
       CastToWSC_ptr (oldWSC, near->symbolicComponent());
       CollisionValidationReportPtr_t colRep;
+      hppDout (info, "Extend status: " << extend.status);
       switch (extend.status) {
         case SUCCESS:
           {
             CastToWSC_ptr (newWSC, newN->symbolicComponent());
+            bool triedNewState = (extend.edge->from() == extend.edge->to());
+            bool reachedNewState = (oldWSC != newWSC);
+            hppDout (info, "Extend success. Info: " << extend.info);
             switch (extend.info) {
               case SUCCESS:
                 // If the corresponding edge is a loop, no adjustment.
@@ -552,9 +590,13 @@ namespace hpp {
                   // Maybe we should decrease the edge probability as well.
                   // A new connection with this edge should be tried whenever
                   // we have tried to extend the new SC and we could not.
+                  graph::Edges_t edges = graph->getEdges(newWSC->state(),oldWSC->state());
+                  for (graph::Edges_t::const_iterator _e = edges.begin();
+                      _e != edges.end(); ++_e)
+                    updateEdgeProba(*_e, newWSC, 0.1);
+                } else {
+                  updateEdgeProba(extend.edge, oldWSC, 0.99); // Rate of change should not be too big.
                 }
-                oldWSC->weight_ *= weightDec;
-                updateEdgeProba(extend.edge, oldWSC, 0.99); // Rate of change should not be too big.
                 break;
               case PATH_PROJECTION_SHORTER:
               case PATH_PROJECTION_AND_VALIDATION_SHORTER:
@@ -576,17 +618,36 @@ namespace hpp {
                     size_type i0 = RelativeMotion::idx(NULL);
                     size_type i1 = RelativeMotion::idx(o1->joint());
                     size_type i2 = RelativeMotion::idx(o2->joint());
-                    if (m(i0, i1) == RelativeMotion::Parameterized
-                        || m(i0, i1) == RelativeMotion::Constrained) {
+                    if ((
+                          m(i0, i1) == RelativeMotion::Parameterized
+                          || m(i0, i1) == RelativeMotion::Constrained
+                        ) && (
+                          m(i0, i2) == RelativeMotion::Parameterized
+                          || m(i0, i2) == RelativeMotion::Constrained
+                          )) {
                       // Object1 should be moved out of the way first...
+                      // TODO the update should not be done this way.
+                      // 1. we should increase the proba of the edge allowing to move this object,
+                      // 2. we should increase the weight of the parent SC which can achieve this motion.
                       updateEdgeProba(extend.edge, oldWSC, 0.99); // Rate of change should not be too big.
+                      hppDout (info, "Collision with a not movable object. Should be moved first");
                     }
-                    if (m(i0, i2) == RelativeMotion::Parameterized
-                        || m(i0, i2) == RelativeMotion::Constrained) {
-                      // Object2 should be moved out of the way first...
-                      updateEdgeProba(extend.edge, oldWSC, 0.99); // Rate of change should not be too big.
+                  } else {
+                    if (o1->joint() == NULL && o2->joint() == NULL) {
+                      std::stringstream ss;
+                      ss << "Collision between static objects " << o1->name()
+                        << " and " << o2->name();
+                      throw std::runtime_error(ss.str());
+                    }
+                    if (triedNewState) {
+                      // Tried but could not reached a new state because of collisions.
+                      // Decrease the probability of sampling this transition.
+                      updateEdgeProba(extend.edge, oldWSC, 0.99);
+                      hppDout (info, "Tried new state but failed due to Collision.");
                     }
                   }
+                } else {
+                  hppDout (info, "Collision: no collision report");
                 }
                 break;
             }
@@ -594,6 +655,8 @@ namespace hpp {
           break;
           // For cases below, newN is a NULL pointer.
         case PROJECTION:
+          updateEdgeProba(extend.edge, oldWSC, 0.95); // Rate of change should not be too big.
+          break;
         case PATH_PROJECTION_ZERO: // unclear for PATH_PROJECTION_ZERO
           // It was not possible to project. It may be that projection is not
           // possible, or only that it is not yet possible.
@@ -641,13 +704,24 @@ namespace hpp {
     void SymbolicPlanner::updateEdgeProba (
         const graph::EdgePtr_t edge,
         WeighedSymbolicComponentPtr_t wsc,
-        const value_type alpha) {
+        const value_type alpha)
+    {
+      const vector_t oldp = wsc->p_;
       std::size_t i = wsc->indexOf (edge);
       assert(i < wsc->p_.size());
-      const value_type pi = wsc->p_[i];
-      wsc->p_ *= ( 1 - alpha * pi ) / ( 1 - pi );
+      const value_type pi = std::min(wsc->p_[i], (value_type)1);
+      if (1 - pi <= Eigen::NumTraits<value_type>::epsilon())
+        wsc->p_.setZero();
+      else
+        wsc->p_ *= ( 1 - alpha * pi ) / ( 1 - pi );
       wsc->p_[i] = alpha * pi;
       wsc->normalizeProba();
+
+      std::stringstream ss;
+      symbolicComponent::Print printer (ss);
+      wsc->accept(printer);
+      hppDout(info, "Updated proba " << i << ", " << edge->name() << " for sc " << ss.str() << '\n'
+          << "before update: " << oldp.transpose() << '\n');
     }
 
     SymbolicPlanner::SymbolicPlanner (const Problem& problem,
