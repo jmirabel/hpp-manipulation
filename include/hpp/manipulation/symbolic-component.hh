@@ -27,6 +27,14 @@
 
 namespace hpp {
   namespace manipulation {
+    class HPP_MANIPULATION_DLLAPI SymbolicComponentVisitor
+    {
+      public:
+        virtual void visit (const SymbolicComponentPtr_t comp) = 0;
+        /// If not reimplemented, simply calls visit(SymbolicComponent*)
+        virtual void visit (const WeighedSymbolicComponentPtr_t comp);
+    };
+
     /// Set of configurations accessible to each others by a single edge,
     /// with the same right hand side.
     ///
@@ -35,6 +43,8 @@ namespace hpp {
     {
       public:
         typedef std::set<SymbolicComponentPtr_t> SymbolicComponents_t;
+
+        virtual ~SymbolicComponent() {}
 
         /// return a shared pointer to new instance
         static SymbolicComponentPtr_t create (const RoadmapPtr_t& roadmap);
@@ -66,6 +76,36 @@ namespace hpp {
         const RoadmapNodes_t& nodes() const
         {
           return nodes_;
+        }
+
+        virtual void accept (SymbolicComponentVisitor& visitor)
+        {
+          visitor.visit (weak_.lock());
+        }
+
+        const SymbolicComponents_t to () const
+        {
+          return to_;
+        }
+
+        const SymbolicComponents_t from () const
+        {
+          return from_;
+        }
+
+        SymbolicComponentPtr_t shPtr () const
+        {
+          return weak_.lock();
+        }
+
+        const graph::NodePtr_t state () const
+        {
+          return state_;
+        }
+
+        const RoadmapPtr_t& roadmap () const
+        {
+          return roadmap_;
         }
 
       protected:
@@ -101,7 +141,13 @@ namespace hpp {
         void normalizeProba ()
         {
           const value_type s = p_.sum();
-          p_ /= s;
+          if (s > 0)
+            p_ /= s;
+        }
+
+        virtual void accept (SymbolicComponentVisitor& visitor)
+        {
+          visitor.visit (weak_.lock());
         }
 
         value_type weight_;
@@ -113,7 +159,14 @@ namespace hpp {
         WeighedSymbolicComponent(const RoadmapPtr_t& r)
           : SymbolicComponent(r), weight_(1) {}
 
+        void init (const WeighedSymbolicComponentWkPtr_t& shPtr)
+        {
+          SymbolicComponent::init (shPtr);
+          weak_ = shPtr;
+        }
+
       private:
+        WeighedSymbolicComponentWkPtr_t weak_;
     }; // class SymbolicComponent
   } //   namespace manipulation
 } // namespace hpp

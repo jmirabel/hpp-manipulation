@@ -111,8 +111,11 @@ namespace hpp {
       std::vector<value_type> p = state_->neighbors().probabilities();
       p_.resize(p.size());
       edges_ = state_->neighbors().values();
-      for (std::size_t i = 0; i < p.size(); ++i)
-        p_[i] = p[i];
+      if (!p.empty() && state_->neighbors().totalWeight() > 0)
+        for (std::size_t i = 0; i < p.size(); ++i)
+          p_[i] = p[i];
+      else
+        p_.setZero();
     }
 
     std::size_t WeighedSymbolicComponent::indexOf (const graph::EdgePtr_t e) const
@@ -121,6 +124,11 @@ namespace hpp {
       for (; i < edges_.size(); ++i)
         if (edges_[i] == e) break;
       return i;
+    }
+
+    void SymbolicComponentVisitor::visit (const WeighedSymbolicComponentPtr_t comp)
+    {
+      return visit ((const SymbolicComponentPtr_t)comp);
     }
   } //   namespace manipulation
 } // namespace hpp
