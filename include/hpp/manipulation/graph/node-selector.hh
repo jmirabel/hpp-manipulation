@@ -82,7 +82,7 @@ namespace hpp {
           typedef std::pair <int, NodePtr_t> WeighedNode_t;
           typedef std::list <WeighedNode_t> WeighedNodes_t;
           WeighedNodes_t orderedStates_;
-          Nodes_t waypoints_;
+          WeighedNodes_t waypoints_;
 
         private:
           /// Weak pointer to itself.

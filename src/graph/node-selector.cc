@@ -46,20 +46,18 @@ namespace hpp {
         newNode->nodeSelector(wkPtr_);
         newNode->parentGraph(graph_);
         newNode->isWaypoint (waypoint);
-        if (waypoint) waypoints_.push_back(newNode);
-        else {
-          bool found = false;
-          for (WeighedNodes_t::iterator it = orderedStates_.begin();
-              it != orderedStates_.end (); ++it) {
-            if (it->first < w) {
-              orderedStates_.insert (it, WeighedNode_t(w,newNode));
-              found = true;
-              break;
-            }
+        WeighedNodes_t& nodes_ = (waypoint?waypoints_:orderedStates_);
+        bool found = false;
+        for (WeighedNodes_t::iterator it = nodes_.begin();
+            it != nodes_.end (); ++it) {
+          if (it->first < w) {
+            nodes_.insert (it, WeighedNode_t(w,newNode));
+            found = true;
+            break;
           }
-          if (!found) 
-            orderedStates_.push_back (WeighedNode_t(w,newNode));
         }
+        if (!found) 
+          nodes_.push_back (WeighedNode_t(w,newNode));
         return newNode;
       }
 
