@@ -44,7 +44,6 @@ namespace hpp {
         wholebodyStep::SmallStepsPtr_t stepPtr
           (wholebodyStep::SmallSteps::create(problem()));
         wholebodyStep::SmallSteps& step (*stepPtr);
-        step.leftHand_.active = true;
 
         ConstraintSetPtr_t c;
         for (std::size_t i_s = 0; i_s < flat->numberPaths ();) {
@@ -62,6 +61,13 @@ namespace hpp {
             if (!c && edge) break;
             if (c && edge->node() != c->edge ()->node()) break;
             toOpt->appendPath (current);
+          }
+          if (edge->node()->name() == "free") {
+            step.leftHand_.active = true;
+            // step.leftHand_.optional = true;
+          } else {
+            step.leftHand_.active = false;
+            // step.leftHand_.optional = true;
           }
           toConcat = step.optimize (toOpt);
           i_s = i_e;

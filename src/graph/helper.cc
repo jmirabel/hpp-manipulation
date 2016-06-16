@@ -208,6 +208,7 @@ namespace hpp {
                   const NodeArray& n, const EdgeArray& e,
                   const size_type w, LevelSetEdgePtr_t& pls)
               {
+                /// TODO: There seems to be a bug in this code.
                 if (Nedges > 1) {
                   const std::size_t T = (pregrasp?1:0) + (intersec?1:0);
                   WaypointEdgePtr_t we = boost::static_pointer_cast <WaypointEdge>
@@ -223,7 +224,7 @@ namespace hpp {
                   return we;
                 } else {
                   assert (gCase == (GraspOnly | NoPlace)
-                      && "Cannot implement a LevelSetEdge for grasping");
+                      && "Cannot implement a LevelSetEdge for placement");
                   pls = boost::static_pointer_cast <LevelSetEdge>
                     (n.back()->linkTo (name + "_ls", n.front(), w,
                                        LevelSetEdge::create));

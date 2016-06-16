@@ -28,6 +28,7 @@
 
 #include <hpp/core/random-shortcut.hh>
 #include <hpp/core/path-optimization/partial-shortcut.hh>
+#include <hpp/core/path-optimization/gradient-based.hh>
 #include <hpp/core/roadmap.hh>
 #include <hpp/core/steering-method-straight.hh>
 #include <hpp/core/comparison-type.hh>
@@ -38,6 +39,7 @@
 #include "hpp/manipulation/device.hh"
 #include "hpp/manipulation/handle.hh"
 #include "hpp/manipulation/graph/graph.hh"
+#include "hpp/manipulation/symbolic-planner.hh"
 #include "hpp/manipulation/manipulation-planner.hh"
 #include "hpp/manipulation/roadmap.hh"
 #include "hpp/manipulation/constraint-set.hh"
@@ -46,6 +48,8 @@
 #include "hpp/manipulation/graph-node-optimizer.hh"
 #include "hpp/manipulation/graph-steering-method.hh"
 #include "hpp/manipulation/path-optimization/config-optimization.hh"
+#include "hpp/manipulation/path-optimization/cut-path.hh"
+#include "hpp/manipulation/path-optimization/keypoints.hh"
 
 #if HPP_MANIPULATION_HAS_WHOLEBODY_STEP
 #include <hpp/wholebody-step/small-steps.hh>
@@ -80,6 +84,8 @@ namespace hpp {
     {
       parent_t::add<core::PathPlannerBuilder_t>
         ("M-RRT", ManipulationPlanner::create);
+      parent_t::add<core::PathPlannerBuilder_t>
+        ("SymbolicPlanner", SymbolicPlanner::create);
       using core::PathOptimizerBuilder_t;
       parent_t::add <PathOptimizerBuilder_t> ("Graph-RandomShortcut",
           GraphOptimizer::create <core::RandomShortcut>);
@@ -95,9 +101,21 @@ namespace hpp {
           GraphConfigOptimizationTraits
             <pathOptimization::ConfigOptimizationTraits>
             >);
+      parent_t::add <PathOptimizerBuilder_t> ("Graph-GradientBased",
+          GraphOptimizer::create <core::pathOptimization::GradientBased>);
       using core::SteeringMethodBuilder_t;
       parent_t::add <SteeringMethodBuilder_t> ("Graph-SteeringMethodStraight",
           GraphSteeringMethod::create <core::SteeringMethodStraight>);
+
+      parent_t::add <PathOptimizerBuilder_t> ("GetGraphPath-0",
+          pathOptimization::CutPath::create < 0 >);
+      parent_t::add <PathOptimizerBuilder_t> ("GetGraphPath-1",
+          pathOptimization::CutPath::create < 1 >);
+      parent_t::add <PathOptimizerBuilder_t> ("GetGraphPath-2",
+          pathOptimization::CutPath::create < 2 >);
+
+      parent_t::add <PathOptimizerBuilder_t> ("KeypointsShortcut",
+          pathOptimization::Keypoints::create);
 
 #if HPP_MANIPULATION_HAS_WHOLEBODY_STEP
       parent_t::add <PathOptimizerBuilder_t>
