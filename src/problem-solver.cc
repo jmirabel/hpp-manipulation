@@ -281,8 +281,8 @@ namespace hpp {
         if (robot_->has <JointAndShapes_t> (*it2))
           l = robot_->get <JointAndShapes_t> (*it2);
         // and then environment triangles.
-        else if (has <JointAndShapes_t> (*it2))
-          l = get <JointAndShapes_t> (*it2);
+        else if (core::ProblemSolver::has <JointAndShapes_t> (*it2))
+          l = core::ProblemSolver::get <JointAndShapes_t> (*it2);
         else throw std::runtime_error ("Second list of triangles not found.");
 
         for (JointAndShapes_t::const_iterator it = l.begin ();

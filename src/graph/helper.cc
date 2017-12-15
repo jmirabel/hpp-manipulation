@@ -1108,7 +1108,7 @@ namespace hpp {
                                    .segment (oj->rankInConfiguration (),
                                              oj->configSize ()), space);
               LockedJointPtr_t lj = core::LockedJoint::create (oj, lge);
-              ps->add <LockedJointPtr_t> ("lock_" + oj->name (), lj);
+              ps->core::ProblemSolver::add <LockedJointPtr_t> ("lock_" + oj->name (), lj);
               objects[i].get<0> ().get<2> ().push_back (lj);
             }
             ++i;

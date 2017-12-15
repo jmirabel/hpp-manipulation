@@ -30,10 +30,14 @@
 namespace hpp {
   namespace manipulation {
     class HPP_MANIPULATION_DLLAPI ProblemSolver :
-      public core::ProblemSolver
+      public core::ProblemSolver,
+      public core::Containers<
+        boost::mpl::vector < graph::GraphPtr_t > >
     {
       public:
         typedef core::ProblemSolver parent_t;
+        typedef core::Containers<boost::mpl::vector < graph::GraphPtr_t > >
+          container_t;
         typedef std::vector <std::string> Names_t;
 
         /// Destructor
