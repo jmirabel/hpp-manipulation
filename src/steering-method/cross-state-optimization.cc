@@ -193,6 +193,7 @@ namespace hpp {
         transitions.reserve (current->l);
         graph::WaypointEdgePtr_t we;
         while (current->e) {
+          hppDout (info, "Transition list: " << transitions.size() << ": " << current->e->name());
           assert (current->l > 0);
           we = HPP_DYNAMIC_PTR_CAST(graph::WaypointEdge, current->e);
           if (we) {
@@ -589,6 +590,10 @@ namespace hpp {
 
         d.solver.explicitConstraintSetHasChanged();
         d.setRightHandSide();
+
+        // Add cost
+        d.solver.add (DifferentiableFunctionPtr_t (new CostFunction (d.robot, d.N)), 1);
+        d.solver.lastIsOptional (true);
 
         hppDout (info, "Solver informations\n" << d.solver);
 

@@ -52,6 +52,9 @@ namespace hpp {
             activeDerivativeParameters_.setConstant(false);
             activeDerivativeParameters_.segment(sd_.first, sd_.second)
               = inner_->activeDerivativeParameters();
+
+            hppDout (info, inner_->name() << ": "
+              << inner_->activeParameters().transpose());
           }
 
         protected:
@@ -162,6 +165,86 @@ namespace hpp {
 
           mutable LiegroupElement l_, r_;
       }; // class Function
+
+      /// Cost function: distances between the configurations.
+      /// Weights are added for transition which should be short.
+      class HPP_MANIPULATION_LOCAL CostFunction :
+        public constraints::DifferentiableFunction
+      {
+        public:
+          typedef boost::shared_ptr<CostFunction> Ptr_t;
+          CostFunction (const core::DevicePtr_t& d, const size_type& N):
+            DifferentiableFunction (N * d->configSize(), N * d->numberDof(),
+                LiegroupSpace::R1(), "CostFunction"),
+            robot_ (d),
+            N_ (N),
+            wdofs_ (vector_t::Ones(d->numberDof())),
+            wcfgs_ (vector_t::Ones(N-1))
+          {
+            v[0] = vector_t(d->numberDof());
+            v[1] = vector_t(d->numberDof());
+          }
+
+        protected:
+          void impl_compute (LiegroupElement& y, vectorIn_t arg) const
+          {
+            size_type nq = robot_->configSize(),
+                      i = nq,
+                      j = 0;
+            y.vector()[0] = 0;
+            for (size_type k = 0; k < N_-1; ++k) {
+              // v = q_{k+1} - q_{k}
+              pinocchio::difference (robot_, arg.segment (j, nq), arg.segment (i, nq), v[0]);
+              y.vector()[0] += wcfgs_[k] * v[0].cwiseAbs2().cwiseProduct(wdofs_).sum();
+              j = i;
+              i += nq;
+            }
+            y.vector()[0] /= 2;
+          }
+
+          void impl_jacobian (matrixOut_t J, vectorIn_t arg) const
+          {
+            size_type nv = robot_->numberDof(),
+                      nq = robot_->configSize(),
+                      l = 0,
+                      i = nq,
+                      j = 0;
+
+            int a = 0, b = 1;
+            value_type wa, wb;
+            for (size_type k = 0; k < N_; ++k) {
+              a = (int) k%2;
+              b = (a+1)%2;
+              // v_a = q_{k+1} - q_{k}
+              // v_b = q_{k} - q_{k-1}
+              if (k == 0) {
+                v[b].setZero();
+                wa = wcfgs_[0];
+                wb = 0;
+              } else if (k == N_ - 1) {
+                v[a].setZero();
+                wa = 1;
+                wb = wcfgs_[N_-2];
+              } else {
+                pinocchio::difference (robot_, arg.segment (j, nq), arg.segment (i, nq), v[a]);
+                wa = wcfgs_[k  ];
+                wb = wcfgs_[k-1];
+              }
+
+              J.middleCols (l, nv).noalias() = (wb * v[b] - wa * v[a]).cwiseProduct(wdofs_).transpose();
+
+              j = i;
+              i += nq;
+              l += nv;
+            }
+          }
+
+          core::DevicePtr_t robot_;
+          const size_type N_;
+          vector_t wdofs_,wcfgs_;
+
+          mutable vector_t v[2];
+      }; // class CostFunction
     } // namespace steeringMethod
   } // namespace manipulation
 } // namespace hpp
