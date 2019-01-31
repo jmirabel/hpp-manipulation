@@ -76,6 +76,7 @@ INSTALL(TARGETS ${LIBRARY_NAME} DESTINATION lib)
 
 ADD_LIBRARY(${LIBRARY_NAME}-gpl SHARED
   path-optimization/spline-gradient-based.cc
+  steering-method/end-effector-trajectory.cc
   )
 
 PKG_CONFIG_USE_DEPENDENCY(${LIBRARY_NAME}-gpl hpp-core)
