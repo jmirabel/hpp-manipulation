@@ -78,15 +78,15 @@ namespace hpp {
             vector_t times_;
         };
 
-        template <bool ApplyLog6>
+        template <bool SE3>
         class FunctionFromPath : public constraints::DifferentiableFunction
         {
           public:
             FunctionFromPath (const PathPtr_t& p)
-              : DifferentiableFunction (1, 1, ApplyLog6 ? 6 : p->outputSize()),
+              : DifferentiableFunction (1, 1, SE3 ? LiegroupSpace::SE3() : LiegroupSpace::Rn(p->outputSize())),
               path_ (p)
             {
-              assert (!ApplyLog6 ||
+              assert (!SE3 ||
                   (p->outputSize() == 7 && p->outputDerivativeSize() == 6));
             }
 
@@ -98,7 +98,7 @@ namespace hpp {
             std::ostream& print (std::ostream& os) const
             {
               return os
-                << (ApplyLog6 ? "FunctionFromPathLog6: " : "FunctionFromPath: ")
+                << (SE3 ? "FunctionFromSE3Path: " : "FunctionFromPath: ")
                 << path_->timeRange().first << ", "
                 << path_->timeRange().second
                 ;
@@ -107,18 +107,7 @@ namespace hpp {
           protected:
             void impl_compute (core::LiegroupElementRef result, vectorIn_t arg) const
             {
-              bool success;
-              if (ApplyLog6) {
-                Transform3f t;
-                success = compute (arg[0], t);
-                //result.vector() = ::pinocchio::log6 (t).toVector();
-                assert (result.vector().size() == 6);
-                result.vector().head<3>() = t.translation();
-                value_type theta;
-                result.vector().tail<3>() = ::pinocchio::log3 (t.rotation(), theta);
-              } else {
-                success = (*path_) (result.vector(), arg[0]);
-              }
+              bool success = (*path_) (result.vector(), arg[0]);
               if (!success) {
                 hppDout (warning, "Failed to evaluate path at param " << arg[0]
                     << incindent << iendl << *path_ << decindent);
@@ -127,31 +116,7 @@ namespace hpp {
 
             void impl_jacobian (matrixOut_t jacobian, vectorIn_t arg) const
             {
-              if (ApplyLog6) {
-                Eigen::Matrix<value_type, 6, 1> der;
-                Eigen::Matrix<value_type, 6, 6> Jlog;
-                Transform3f t;
-
-                compute (arg[0], t);
-                path_->derivative (der, arg[0], 1);
-
-                ::pinocchio::Jlog6 (t, Jlog);
-
-                jacobian.noalias() = Jlog * der;
-              } else {
-                path_->derivative (jacobian.col(0), arg[0], 1);
-              }
-            }
-
-            bool compute (const value_type& time, Transform3f& t) const
-            {
-              Eigen::Matrix<value_type, 7, 1> res;
-              bool success = (*path_) (res, time);
-
-              t = Transform3f (
-                  Eigen::Map<Transform3f::Quaternion> (res.tail<4>().data()).matrix(),
-                  res.head<3>());
-              return success;
+              path_->derivative (jacobian.col(0), arg[0], 1);
             }
 
           private:
@@ -206,9 +171,9 @@ namespace hpp {
         if (eeTraj_) trajectory (eeTraj_, timeRange_);
       }
 
-      void EndEffectorTrajectory::trajectory (const PathPtr_t& eeTraj, bool applyLog6)
+      void EndEffectorTrajectory::trajectory (const PathPtr_t& eeTraj, bool se3Output)
       {
-        if (applyLog6)
+        if (se3Output)
           trajectory (DifferentiableFunctionPtr_t
               (new FunctionFromPath <true > (eeTraj)), eeTraj->timeRange());
         else

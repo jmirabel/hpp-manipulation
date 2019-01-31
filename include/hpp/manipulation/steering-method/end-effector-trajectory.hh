@@ -49,7 +49,7 @@ namespace hpp {
 
           void trajectoryConstraint (const constraints::ImplicitPtr_t& ic);
 
-          void trajectory (const PathPtr_t& eeTraj, bool applyLog6);
+          void trajectory (const PathPtr_t& eeTraj, bool se3Output);
 
           void trajectory (const DifferentiableFunctionPtr_t& eeTraj, const interval_t& timeRange);
 

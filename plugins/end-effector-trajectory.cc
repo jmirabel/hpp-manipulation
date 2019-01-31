@@ -38,7 +38,11 @@ namespace hpp {
           : Command ("Setup EndEffectorTrajectory steering method.\n"
               "Arguments are:\n"
               "- constraint name\n"
-              "- path index\n")
+              "- path index\n"
+              "- start of time interval in path\n"
+              "- end of time interval in path\n"
+              "- True if path output space is SE3, false otherwise.\n"
+              )
         {
           valueTypes (core::list_of
               (Parameter::STRING)
@@ -55,7 +59,7 @@ namespace hpp {
           size_type iPath   = getParameterValues()[1].intValue();
           value_type start  = getParameterValues()[2].floatValue();
           value_type end    = getParameterValues()[3].floatValue();
-          bool applyLog     = getParameterValues()[4].boolValue();
+          bool se3output    = getParameterValues()[4].boolValue();
 
 #if 1
           constraints::ImplicitPtr_t constraint = ps->numericalConstraint (cname);
@@ -92,7 +96,7 @@ namespace hpp {
             throw std::invalid_argument ("Steering method is not of type EndEffectorTrajectory");
 
           sm->trajectoryConstraint (constraint->copy());
-          sm->trajectory (path, applyLog);
+          sm->trajectory (path, se3output);
 
           return Parameter();
         }
