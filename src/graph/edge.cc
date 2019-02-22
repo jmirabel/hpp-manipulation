@@ -344,12 +344,11 @@ namespace hpp {
 	    return false;
 	  }
         } else {
-	  std::ostringstream oss;
-	  oss << "The initial configuration " << displayConfig (q1)
+          hppDout (warning, "The initial configuration " << displayConfig (q1)
               << " does not satisfy the constraints of"
-	    " edge " << name () << "." << std::endl;
-	  oss << "The graph is probably malformed";
-	  throw std::runtime_error (oss.str ().c_str ());
+              " edge " << name () << ".\n"
+              "The graph is probably malformed");
+          return false;
 	}
       }
 
