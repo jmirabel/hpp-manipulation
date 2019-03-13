@@ -32,6 +32,7 @@ namespace hpp {
 
       using core::PathPtr_t;
 
+      /// Build StraightPath constrained by a varying right hand side constraint.
       class HPP_MANIPULATION_DLLAPI EndEffectorTrajectory
         : public core::SteeringMethod
       {
@@ -45,12 +46,17 @@ namespace hpp {
             return ptr;
           }
 
-          static EndEffectorTrajectoryPtr_t createWithGuess (const core::Problem& problem);
-
+          /// Set the constraint whose right hand side will vary.
           void trajectoryConstraint (const constraints::ImplicitPtr_t& ic);
 
+          /// Set the right hand side of the function from a path
+          /// \param se3Output set to True if the output of path must be
+          ///                  understood as SE3.
           void trajectory (const PathPtr_t& eeTraj, bool se3Output);
 
+          /// Set the right hand side of the function from another function.
+          /// \param eeTraj a function whose input space is of dimension 1.
+          /// \param timeRange the input range of eeTraj.
           void trajectory (const DifferentiableFunctionPtr_t& eeTraj, const interval_t& timeRange);
 
           const DifferentiableFunctionPtr_t& trajectory () const

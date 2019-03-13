@@ -34,50 +34,6 @@ namespace hpp {
   namespace manipulation {
     namespace steeringMethod {
       namespace {
-        /// Class only for testing purpose.
-        class Interpolation : public constraints::DifferentiableFunction
-        {
-          public:
-            Interpolation (const matrix_t& points,
-                const vector_t& times)
-              : DifferentiableFunction (1, 1, points.cols()),
-              points_ (points),
-              times_ (times)
-            {}
-
-          protected:
-            void impl_compute (core::LiegroupElementRef result, vectorIn_t arg) const
-            {
-              value_type t = arg[0];
-              size_type i = rank (t);
-              value_type u = (t - times_[i]) / (times_[i+1] - times_[i]);
-              result.vector() = (1-u) * points_.row(i) + u * points_.row(i+1);
-            }
-
-            void impl_jacobian (matrixOut_t jacobian, vectorIn_t arg) const
-            {
-              value_type t = arg[0];
-              size_type i = rank (t);
-              jacobian = points_.row(i+1) - points_.row(i);
-            }
-
-            std::ostream& print (std::ostream& os) const
-            {
-              return os << "Interpolation: " << one_line (times_);
-            }
-
-          private:
-            size_type rank (value_type t) const
-            {
-              for (size_type i = 1; i < times_.size(); ++i)
-                if (t < times_[i]) return i-1; // between i-1 and i
-              return times_.size() - 2; // between i-2 and i-1
-            }
-
-            matrix_t points_;
-            vector_t times_;
-        };
-
         template <bool SE3>
         class FunctionFromPath : public constraints::DifferentiableFunction
         {
@@ -122,47 +78,6 @@ namespace hpp {
           private:
             PathPtr_t path_;
         };
-      }
-
-      EndEffectorTrajectoryPtr_t EndEffectorTrajectory::createWithGuess
-        (const core::Problem& problem)
-      {
-        matrix_t points = problem.getParameter ("EndEffectorTrajectory/points").matrixValue();
-        vector_t times = problem.getParameter ("EndEffectorTrajectory/times").vectorValue();
-        std::string cname = problem.getParameter ("EndEffectorTrajectory/constraint").stringValue();
-
-        core::ConstraintSetPtr_t c (problem.constraints());
-        if (!c || !c->configProjector())
-          throw std::logic_error ("Problem constraint must have a ConfigProjector");
-        ConfigProjectorPtr_t cp (c->configProjector());
-
-        ImplicitPtr_t ic;
-        const core::NumericalConstraints_t& ncs = cp->numericalConstraints();
-        for (std::size_t i = 0; i < ncs.size(); ++i) {
-          if (ncs[i]->function().name() == cname) {
-            ic = ncs[i];
-            break;
-          }
-        }
-        if (!ic)
-          throw std::logic_error ("Constraint not found");
-        if (times[0] != 0)
-          throw std::logic_error ("Times[0] must be 0");
-        for (size_type i = 1; i < times.size(); ++i)
-          if (times[i-1] >= times[i])
-            throw std::logic_error ("Times must be strictly increasing");
-        if (points.rows() != times.size())
-          throw std::logic_error ("Points and times size mismatch.");
-        if (points.cols() != ic->rhsSize())
-          throw std::logic_error ("Points size does not match constraint right hand side.");
-
-        DifferentiableFunctionPtr_t path (new Interpolation (points, times));
-
-        EndEffectorTrajectoryPtr_t sm = create (problem);
-        sm->trajectory (path, interval_t(times[0], times[times.size()-1]));
-        sm->trajectoryConstraint (ic);
-
-        return sm;
       }
 
       void EndEffectorTrajectory::trajectoryConstraint (const constraints::ImplicitPtr_t& ic)
@@ -241,22 +156,6 @@ namespace hpp {
           throw;
         }
       }
-
-      using core::Parameter;
-      using core::ParameterDescription;
-
-      HPP_START_PARAMETER_DECLARATION(EndEffectorTrajectory)
-      core::Problem::declareParameter(ParameterDescription(Parameter::STRING,
-            "EndEffectorTrajectory/constraint",
-            "Name of the constraint in the problem constraint which represent"
-            ));
-      core::Problem::declareParameter(ParameterDescription(Parameter::MATRIX,
-            "EndEffectorTrajectory/points",
-            ""));
-      core::Problem::declareParameter(ParameterDescription(Parameter::VECTOR,
-            "EndEffectorTrajectory/times",
-            ""));
-      HPP_END_PARAMETER_DECLARATION(EndEffectorTrajectory)
     } // namespace steeringMethod
   } // namespace manipulation
 } // namespace hpp

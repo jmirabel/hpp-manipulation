@@ -51,6 +51,7 @@ SET(SOURCES
 
   problem-target/state.cc
 
+  steering-method/end-effector-trajectory.cc
   steering-method/cross-state-optimization.cc
   steering-method/graph.cc
   )
@@ -76,7 +77,6 @@ INSTALL(TARGETS ${LIBRARY_NAME} DESTINATION lib)
 
 ADD_LIBRARY(${LIBRARY_NAME}-gpl SHARED
   path-optimization/spline-gradient-based.cc
-  steering-method/end-effector-trajectory.cc
   )
 
 PKG_CONFIG_USE_DEPENDENCY(${LIBRARY_NAME}-gpl hpp-core)
